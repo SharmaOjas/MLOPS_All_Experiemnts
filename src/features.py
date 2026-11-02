@@ -35,7 +35,7 @@ def build_features(df: pd.DataFrame, sensors: list[str], window: int) -> pd.Data
     pos = g.cumcount()  # 0-based position inside each engine's history
 
     def roll_mean(s: pd.Series) -> pd.Series:
-        return s.rolling(window, min_periods=1).mean()  # BUG: not grouped by engine -> leaks across units
+        return s.groupby(df["unit"], sort=False).rolling(window, min_periods=1).mean().reset_index(level=0, drop=True)
 
     mx = roll_mean(x)
     var_x = roll_mean(x * x) - mx**2
