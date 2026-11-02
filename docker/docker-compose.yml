@@ -1,0 +1,65 @@
+# Full local stack: prediction API + dashboard + Prometheus + Grafana.
+#   docker compose -f docker/docker-compose.yml up -d --build
+# Ports: API 8000, Streamlit 8501, Prometheus 9090, Grafana 3000.
+# (Terraform uses port 8001 and Kubernetes NodePort 30080, so all three can run side by side.)
+name: rul-mlops
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: rul-api:1.0.0
+    container_name: rul-api-compose
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  dashboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.streamlit
+    image: rul-dashboard:1.0.0
+    container_name: rul-dashboard
+    environment:
+      RUL_API_URL: http://api:8000
+      PROMETHEUS_URL: http://prometheus:9090
+    volumes:
+      - ../data:/app/data:ro
+      - ../models:/app/models:ro
+      - ../feature_store:/app/feature_store:ro
+      - ../mlruns:/app/mlruns:ro
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: rul-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # reach Terraform/K8s deployments on the host
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    container_name: rul-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus

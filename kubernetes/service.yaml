@@ -1,0 +1,18 @@
+# LoadBalancer also allocates NodePort 30080, so this works on both:
+#  - Docker Desktop Kubernetes (kind): exposed on http://localhost:30080
+#    (plain NodePorts are not forwarded to the Windows host there)
+#  - Minikube: `minikube service rul-api-service -n rul-mlops` or http://$(minikube ip):30080
+apiVersion: v1
+kind: Service
+metadata:
+  name: rul-api-service
+  namespace: rul-mlops
+spec:
+  type: LoadBalancer
+  selector:
+    app: rul-api
+  ports:
+    - name: http
+      port: 30080
+      targetPort: http
+      nodePort: 30080
