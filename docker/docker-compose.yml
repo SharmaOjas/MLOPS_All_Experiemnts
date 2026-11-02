@@ -57,6 +57,10 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: admin
+      # Local lab: view dashboards without logging in (read-only Viewer role)
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/rul_api.json
     volumes:
       - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro

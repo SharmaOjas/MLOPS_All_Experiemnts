@@ -817,7 +817,12 @@ PAGES = {
 with st.sidebar:
     st.markdown("## ✈️ Engine RUL MLOps")
     st.caption(f"NASA C-MAPSS {SUBSET} · v{CFG['project']['version']}")
-    choice = st.radio("Navigate", list(PAGES), label_visibility="collapsed")
+    # Deep links: ?page=overview|dataset|eda|etl|experiments|evaluation|predict|monitoring|pipeline
+    slugs = ["overview", "dataset", "eda", "etl", "experiments", "evaluation", "predict", "monitoring", "pipeline"]
+    qp = st.query_params.get("page")
+    choice = st.radio("Navigate", list(PAGES), label_visibility="collapsed",
+                      index=slugs.index(qp) if qp in slugs else 0)
+    st.query_params["page"] = slugs[list(PAGES).index(choice)]
     st.divider()
     st.caption("Data: NASA Prognostics Center of Excellence, Turbofan Engine Degradation Simulation "
                "(Saxena & Goebel, 2008).")

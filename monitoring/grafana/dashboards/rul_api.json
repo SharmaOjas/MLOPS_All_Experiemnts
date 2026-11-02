@@ -360,7 +360,7 @@
         "x": 0,
         "y": 21,
         "w": 12,
-        "h": 9
+        "h": 12
       },
       "targets": [
         {
@@ -389,13 +389,17 @@
                 "value": 0.25
               }
             ]
-          }
+          },
+          "displayName": "${__field.labels.sensor}"
         },
         "overrides": []
       },
       "options": {
         "orientation": "horizontal",
-        "displayMode": "gradient"
+        "displayMode": "gradient",
+        "namePlacement": "left",
+        "showUnfilled": true,
+        "valueMode": "color"
       }
     },
     {
