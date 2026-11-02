@@ -29,6 +29,7 @@ services:
       - ../models:/app/models:ro
       - ../feature_store:/app/feature_store:ro
       - ../mlruns:/app/mlruns:ro
+      - ../terraform:/app/terraform:ro   # dashboard reads terraform.tfstate
     ports:
       - "8501:8501"
     depends_on:
