@@ -698,17 +698,59 @@ def page_monitoring():
             language="bash")
 
 
+IN_CONTAINER = Path("/.dockerenv").exists()
+NO_CLI_NOTE = ("Not available here: the dashboard is running inside a Docker container, which deliberately has no "
+               "access to the host's Docker daemon or kubectl (mounting the Docker socket would give the container "
+               "root on the host). Deployment health above comes from Prometheus instead. For full CLI status run "
+               "the dashboard on the host: `streamlit run streamlit_app/app.py`.")
+
+
+def cli_status(args: list[str], empty: str):
+    rc, out = run_cmd(args)
+    if rc is None and IN_CONTAINER:
+        st.info(NO_CLI_NOTE)
+    else:
+        st.code(out or empty, language="text")
+
+
 def page_pipeline():
     st.title("🚀 MLOps Pipeline")
-    st.caption("Status below is queried live from git, GitHub, Docker, kubectl and the Terraform state file. "
-               "Nothing here is hard-coded.")
+    st.caption("Status below is queried live from Prometheus, GitHub, git, Docker, kubectl and the Terraform state "
+               "file. Nothing here is hard-coded.")
     repo = CFG["github"]["repo"]
+
+    st.subheader("Deployments (live health via Prometheus scrapes)")
+    targets = {"rul-api-compose": ("Docker Compose", ":8000"), "rul-api-terraform": ("Terraform", ":8001"),
+               "rul-api-kubernetes": ("Kubernetes", ":30080")}
+    try:
+        up = {r["metric"]["job"]: r["value"][1] == "1" for r in prom('up{job=~"rul-api.*"}')}
+        c = st.columns(3)
+        for col, (job, (label, port)) in zip(c, targets.items()):
+            state = pill("UP", "ok") if up.get(job) else pill("DOWN", "bad") if job in up else pill("NOT SCRAPED", "warn")
+            col.markdown(f"**{label}** {state}<br><span class='muted'>job {job}, port {port}</span>",
+                         unsafe_allow_html=True)
+    except Exception:  # noqa: BLE001
+        st.info(f"Prometheus not reachable at {PROM_URL}; start `docker compose -f docker/docker-compose.yml up -d`.")
+
     t = st.tabs(["Git & GitHub Actions", "Docker", "Kubernetes", "Terraform"])
 
     with t[0]:
-        rc, out = run_cmd(["git", "log", "--oneline", "--graph", "--decorate", "-n", "25"])
         st.markdown(f"**Repository:** [github.com/{repo}](https://github.com/{repo})")
-        st.code(out or "no git history", language="text")
+        rc, out = run_cmd(["git", "log", "--oneline", "--graph", "--decorate", "-n", "25"])
+        if rc == 0:
+            st.code(out, language="text")
+        else:  # no local git (e.g. inside the container): read the history from GitHub
+            try:
+                r = requests.get(f"https://api.github.com/repos/{repo}/commits?per_page=20", timeout=5)
+                r.raise_for_status()
+                st.caption("Commit history from the GitHub API (no local git in this environment)")
+                st.dataframe(pd.DataFrame([{"sha": x["sha"][:7], "message": x["commit"]["message"].splitlines()[0],
+                                            "author": x["commit"]["author"]["name"],
+                                            "date": x["commit"]["author"]["date"]} for x in r.json()]),
+                             hide_index=True, width="stretch")
+            except requests.RequestException as e:
+                st.info(f"No local git and GitHub API not reachable: {e}")
+        st.markdown("**GitHub Actions runs**")
         try:
             r = requests.get(f"https://api.github.com/repos/{repo}/actions/runs?per_page=15", timeout=5)
             runs = r.json().get("workflow_runs", []) if r.ok else []
@@ -728,18 +770,16 @@ def page_pipeline():
                 "git push -u origin feature/my-change   # CI runs on push + pull request", language="bash")
 
     with t[1]:
-        rc, out = run_cmd(["docker", "ps", "-a", "--filter", "name=rul", "--format",
-                           "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"])
-        st.code(out, language="text")
-        rc, out = run_cmd(["docker", "images", "rul-api", "--format", "table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"])
-        st.code(out, language="text")
+        cli_status(["docker", "ps", "-a", "--filter", "name=rul", "--format",
+                    "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"], "no rul containers")
+        cli_status(["docker", "images", "rul-api", "--format",
+                    "table {{.Repository}}:{{.Tag}}\t{{.Size}}\t{{.CreatedSince}}"], "no rul-api image")
         st.code("docker build -f docker/Dockerfile -t rul-api:1.0.0 .\n"
                 "docker compose -f docker/docker-compose.yml up -d --build\n"
                 "docker compose -f docker/docker-compose.yml ps", language="bash")
 
     with t[2]:
-        rc, out = run_cmd(["kubectl", "get", "deploy,pods,svc", "-n", "rul-mlops", "-o", "wide"])
-        st.code(out or "namespace rul-mlops is empty", language="text")
+        cli_status(["kubectl", "get", "deploy,pods,svc", "-n", "rul-mlops", "-o", "wide"], "namespace rul-mlops is empty")
         st.code("kubectl apply -f kubernetes/\nkubectl get pods -n rul-mlops\n"
                 "kubectl scale deployment rul-api -n rul-mlops --replicas=5\n"
                 "kubectl get pods -n rul-mlops", language="bash")
