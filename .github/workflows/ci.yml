@@ -1,0 +1,110 @@
+name: CI - Aircraft RUL MLOps
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Data, model & API tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Unit tests (no data or model needed)
+        run: pytest -v -m "not model" tests/test_data.py tests/test_features.py tests/test_metrics.py
+
+      - name: Cache NASA C-MAPSS dataset
+        uses: actions/cache@v4
+        with:
+          path: data/raw/CMAPSS
+          key: cmapss-v1
+
+      - name: Download dataset
+        run: python -m src.data --download
+
+      - name: Train models (ETL -> feature store -> MLflow -> best model)
+        env:
+          MLFLOW_DISABLE_AGENT_HINT: "1"
+        run: python -m src.train
+
+      - name: Full test suite (model predictions + API endpoints)
+        run: pytest -v --junitxml=pytest-report.xml
+
+      - name: Upload model bundle and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-bundle
+          path: |
+            models/
+            pytest-report.xml
+          if-no-files-found: warn
+
+  docker:
+    name: Build image & smoke-test API container
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: model-bundle
+      - name: Build image
+        run: docker build -f docker/Dockerfile -t rul-api:ci .
+      - name: Run container and call endpoints
+        run: |
+          docker run -d --name rul-api -p 8000:8000 rul-api:ci
+          for i in $(seq 1 30); do curl -sf localhost:8000/health && break; sleep 2; done
+          curl -sf localhost:8000/health
+          python3 - <<'EOF'
+          import json, urllib.request
+          rows = [{"cycle": c, **{f"s{i}": v for i, v in enumerate(
+              [518.67, 642.0, 1585.0, 1400.0, 14.62, 21.61, 554.0, 2388.0, 9050.0, 1.3, 47.4,
+               522.0, 2388.0, 8135.0, 8.42, 0.03, 392, 2388, 100.0, 38.9, 23.3], start=1)}} for c in range(1, 31)]
+          req = urllib.request.Request("http://localhost:8000/predict", json.dumps({"records": rows}).encode(),
+                                       {"Content-Type": "application/json"})
+          out = json.load(urllib.request.urlopen(req))
+          print(out)
+          assert 0 <= out["predicted_rul"] <= 125
+          EOF
+          curl -sf localhost:8000/metrics | grep rul_predictions_total
+      - name: Container logs
+        if: always()
+        run: docker logs rul-api
+
+  infra-validate:
+    name: Validate Terraform & Kubernetes manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: terraform fmt / init / validate
+        working-directory: terraform
+        run: |
+          terraform fmt -check
+          terraform init -backend=false
+          terraform validate
+      - name: Kubernetes manifests are valid YAML with required kinds
+        run: |
+          pip install pyyaml
+          python3 -c "
+          import yaml, glob
+          kinds = [d['kind'] for f in sorted(glob.glob('kubernetes/*.yaml')) for d in yaml.safe_load_all(open(f))]
+          print(kinds); assert {'Namespace', 'Deployment', 'Service'} <= set(kinds)"
