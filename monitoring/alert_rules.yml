@@ -1,0 +1,46 @@
+groups:
+  - name: rul-api
+    rules:
+      - alert: RulApiDown
+        expr: up{job="rul-api-compose"} == 0
+        for: 30s
+        labels: {severity: critical}
+        annotations:
+          summary: "RUL prediction API is down"
+
+      - alert: RulHighErrorRate
+        expr: sum(rate(rul_prediction_errors_total[5m])) / clamp_min(sum(rate(rul_http_requests_total{endpoint="/predict"}[5m])), 1e-9) > 0.1
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 10% of /predict requests fail"
+
+      - alert: RulHighLatency
+        expr: histogram_quantile(0.95, sum by (le) (rate(rul_prediction_latency_seconds_bucket[5m]))) > 0.5
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "p95 prediction latency above 500 ms"
+
+      # Measured baseline: genuine FD001 test traffic gives median PSI ~0.15-0.3 because test engines are
+      # younger than the run-to-failure training fleet. Calibrated threshold: median PSI > 0.5.
+      - alert: RulInputDrift
+        expr: quantile(0.5, rul_input_psi) > 0.5
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "Fleet-wide input drift: median sensor PSI > 0.5"
+
+      - alert: RulSensorDrift
+        expr: max(rul_input_psi) > 1
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "One sensor's input distribution shifted strongly (PSI > 1) - possible sensor fault"
+
+      - alert: RulModelErrorHigh
+        expr: max(rul_feedback_rolling_mae) > 25
+        for: 1m
+        labels: {severity: warning}
+        annotations:
+          summary: "Rolling MAE from ground-truth feedback above 25 cycles"

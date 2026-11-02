@@ -1,0 +1,568 @@
+{
+  "uid": "rul-api",
+  "title": "Aircraft Engine RUL - Prediction Service",
+  "tags": [
+    "mlops",
+    "rul"
+  ],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Operational monitoring - service health",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "API targets up",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 4,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(up{job=~\"$job\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Predictions served",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 4,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rul_predictions_total{job=~\"$job\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Prediction errors",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 9,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rul_prediction_errors_total{job=~\"$job\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Error rate (5m)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 14,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rul_prediction_errors_total{job=~\"$job\"}[5m])) / clamp_min(sum(rate(rul_http_requests_total{job=~\"$job\",endpoint=\"/predict\"}[5m])), 1e-9)",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.05
+              },
+              {
+                "color": "red",
+                "value": 0.1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "p95 latency (5m)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 19,
+        "y": 1,
+        "w": 5,
+        "h": 4
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rul_prediction_latency_seconds_bucket{job=~\"$job\"}[5m])))",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Request rate by endpoint / status",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum by (endpoint, status) (rate(rul_http_requests_total{job=~\"$job\"}[1m]))",
+          "legendFormat": "{{endpoint}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Prediction latency",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 5,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(rul_prediction_latency_seconds_bucket{job=~\"$job\"}[1m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rul_prediction_latency_seconds_bucket{job=~\"$job\"}[1m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(rul_prediction_latency_seconds_bucket{job=~\"$job\"}[1m])))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Errors by type (per second)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(rul_prediction_errors_total{job=~\"$job\"}[1m]))",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Targets up",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 13,
+        "w": 12,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"$job\"}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Model output and input-data drift (no ground truth needed)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Input drift - PSI per sensor (recent inputs vs training)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "expr": "max by (sensor) (rul_input_psi{job=~\"$job\"})",
+          "legendFormat": "{{sensor}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 0.5,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.1
+              },
+              {
+                "color": "red",
+                "value": 0.25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      }
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Median / p10 predicted RUL (cycles)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 21,
+        "w": 12,
+        "h": 9
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(rul_predicted_cycles_bucket{job=~\"$job\"}[5m])))",
+          "legendFormat": "median",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.1, sum by (le) (rate(rul_predicted_cycles_bucket{job=~\"$job\"}[5m])))",
+          "legendFormat": "p10",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Out-of-training-range input values (per second)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 7
+      },
+      "targets": [
+        {
+          "expr": "sum by (sensor) (rate(rul_input_out_of_range_total{job=~\"$job\"}[1m]))",
+          "legendFormat": "{{sensor}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 15,
+      "type": "row",
+      "title": "Model performance monitoring (requires ground-truth feedback)",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 37,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Rolling MAE vs reported true RUL (last 200)",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 38,
+        "w": 16,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "rul_feedback_rolling_mae{job=~\"$job\"}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 25
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {}
+    },
+    {
+      "id": 17,
+      "type": "stat",
+      "title": "Labelled predictions received",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 38,
+        "w": 8,
+        "h": 8
+      },
+      "targets": [
+        {
+          "expr": "sum(rul_feedback_total{job=~\"$job\"})",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "label": "Deployment",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": {
+          "query": "label_values(up{job=~\"rul-api.*\"}, job)",
+          "refId": "q"
+        },
+        "definition": "label_values(up{job=~\"rul-api.*\"}, job)",
+        "includeAll": true,
+        "multi": true,
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "refresh": 2
+      }
+    ]
+  }
+}
