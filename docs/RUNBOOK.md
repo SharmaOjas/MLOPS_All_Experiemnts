@@ -20,7 +20,7 @@ under **Models → aircraft-rul-model**.
 
 ```powershell
 uvicorn api.main:app --port 8000          # http://127.0.0.1:8000/docs
-streamlit run streamlit_app/app.py        # http://localhost:8501
+streamlit run streamlit_app/app.py        # http://localhost:8501  (deep links: ?page=predict, ?page=monitoring, ...)
 python scripts/simulate_traffic.py --n 100                          # real test engines + ground-truth feedback
 python scripts/simulate_traffic.py --n 60 --error-rate 0.3 --drift 3  # errors + drifted inputs
 ```
@@ -137,7 +137,7 @@ python scripts/simulate_traffic.py --n 60 --error-rate 0.3 --drift 3
   - `histogram_quantile(0.95, sum by (le) (rate(rul_prediction_latency_seconds_bucket[5m])))`
   - `rul_input_psi`
   - `rul_feedback_rolling_mae`
-- Grafana: <http://localhost:3000> (admin / admin). Open **Dashboards → Aircraft RUL → Aircraft Engine RUL - Prediction Service**.
+- Grafana: <http://localhost:3000> (opens read-only without login; admin / admin to edit). Open **Dashboards → Aircraft RUL → Aircraft Engine RUL - Prediction Service**.
   The data source and dashboard are provisioned automatically.
 - Availability exercise: `docker stop rul-api-compose` → `up{job="rul-api-compose"}` = 0 and the
   `RulApiDown` alert fires. Then `docker start rul-api-compose`.
